@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 mod ref_with_flag {
-    use std::marker::PhantomData;
     use std::mem::align_of;
 
     /// A `&T` and a `bool`, wrapped up in a single word.
@@ -10,29 +9,30 @@ mod ref_with_flag {
     /// If you're the kind of programmer who's never met a pointer whose
     /// 2⁰-bit you didn't want to steal, well, now you can do it safely!
     /// ("But it's not nearly as exciting this way...")
-    pub struct RefWithFlag<'a, T: 'a> {
-        ptr_and_bit: usize,
-        behaves_like: PhantomData<&'a T> // occupies no space
+    pub struct RefWithFlag<T> {
+        ptr_and_bit: *const T,
     }
 
-    impl<'a, T: 'a> RefWithFlag<'a, T> {
+    impl<'a, T: 'a> RefWithFlag<T> {
         pub fn new(ptr: &'a T, bit: bool) -> RefWithFlag<T> {
             assert!(align_of::<T>() % 2 == 0);
             RefWithFlag {
-                ptr_and_bit: ptr as *const T as usize | bit as usize,
-                behaves_like: PhantomData
+                ptr_and_bit: (ptr as *const T as usize | bit as usize) as *const T,
             }
         }
 
         pub fn as_ref(&self) -> &'a T {
-            let ptr = (self.ptr_and_bit & !1) as *const T;
+            let ptr = (self.ptr_and_bit as usize & !1) as *const T;
+            // Safety: ptr is guaranteed to point to a
+            // correctly aligned live value by the type and
+            // borrow checking.
             unsafe {
                 &*ptr
             }
         }
 
         pub fn as_bool(&self) -> bool {
-            self.ptr_and_bit & 1 != 0
+            self.ptr_and_bit as usize & 1 != 0
         }
     }
 }
